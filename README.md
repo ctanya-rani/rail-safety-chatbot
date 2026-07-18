@@ -13,6 +13,8 @@ do locomotives need inspection?"*, or *"Do we need a safety management
 system to run freight trains in the EU?"* and get a grounded answer with
 inline citations to the specific regulation section.
 
+![Chat UI answering a track-speed question, with retrieved sources panel](docs/ui-answer.png)
+
 ## How it works
 
 ```
@@ -53,6 +55,28 @@ you> what is the maximum speed for freight on class 4 track?
 On Class 4 track, the maximum allowable operating speed for freight trains
 is 60 mph (80 mph for passenger trains) [fra-49cfr-213 § 213.9]. ...
 ```
+
+### Web UI
+
+```bash
+uvicorn railsafe.server:app --reload
+# open http://127.0.0.1:8000
+```
+
+A single-page chat interface (vanilla JS, no build step) backed by a FastAPI
+server that streams answers over Server-Sent Events. Each answer starts with
+a `sources` event, so the right-hand panel shows exactly which regulation
+excerpts the answer is grounded in — jurisdiction badges, relevance bars,
+and links to the official text. A segmented control restricts retrieval to
+the US or EU regime.
+
+Without an API key the server runs in **demo mode**: retrieval works and the
+top excerpts are streamed back verbatim, so the UI is fully demoable
+offline.
+
+![Landing page with suggested compliance questions](docs/ui-landing.png)
+
+### CLI
 
 One-shot mode:
 
@@ -106,8 +130,11 @@ src/railsafe/
   ingest.py           corpus -> chunks.jsonl
   retriever.py        BM25 search with jurisdiction filter
   chat.py             CLI chatbot (streaming, citations, prompt caching)
+  server.py           FastAPI backend (SSE streaming, demo mode)
+  static/             web chat UI (vanilla HTML/CSS/JS)
   fetch_ecfr.py       pull official 49 CFR text from the eCFR API
 tests/
+docs/                 UI screenshots
 ```
 
 ## Disclaimer

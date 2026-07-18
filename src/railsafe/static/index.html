@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rail Safety Compliance Assistant</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚦</text></svg>" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
+        <rect x="4" y="2" width="8" height="28" rx="2" fill="#14304f"/>
+        <circle cx="8" cy="8"  r="2.6" fill="#e05252"/>
+        <circle cx="8" cy="16" r="2.6" fill="#e8a13a"/>
+        <circle cx="8" cy="24" r="2.6" fill="#3f9d63"/>
+        <path d="M17 28 L29 4" stroke="#14304f" stroke-width="2.4" stroke-linecap="round"/>
+        <path d="M21 28 L33 4" stroke="#14304f" stroke-width="2.4" stroke-linecap="round" opacity=".45"/>
+      </svg>
+      <div>
+        <h1>Rail Safety Compliance Assistant</h1>
+        <p class="tagline">FRA · 49 CFR&ensp;|&ensp;ERA · EU Railway Safety Law</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span id="demo-badge" class="badge badge-demo" hidden>demo mode — retrieval only</span>
+      <span id="chunk-badge" class="badge badge-info"></span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="chat-pane">
+      <div id="chat" class="chat">
+        <div id="empty-state" class="empty-state">
+          <h2>Ask a compliance question in plain English</h2>
+          <p>Answers are grounded in the indexed regulations and cite the specific section.</p>
+          <div class="chips">
+            <button class="chip">What's the maximum speed for freight on Class 3 track?</button>
+            <button class="chip">How often must locomotives be inspected?</button>
+            <button class="chip">Do we need a safety management system to run trains in the EU?</button>
+            <button class="chip">When does the CSM risk assessment apply to a change?</button>
+            <button class="chip">What protection do roadway workers need before fouling a track?</button>
+          </div>
+        </div>
+      </div>
+
+      <form id="composer" class="composer">
+        <div class="jurisdiction" role="group" aria-label="Jurisdiction filter">
+          <button type="button" data-j="" class="seg active">All</button>
+          <button type="button" data-j="US-FRA" class="seg">US · FRA</button>
+          <button type="button" data-j="EU-ERA" class="seg">EU · ERA</button>
+        </div>
+        <div class="input-row">
+          <input id="question" type="text" autocomplete="off"
+                 placeholder="e.g. What percentage of brakes must work before a train departs?" />
+          <button id="send" type="submit" aria-label="Send">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+          </button>
+        </div>
+        <p class="disclaimer">Regulatory information, not legal advice. Verify against eCFR / EUR-Lex before making compliance decisions.</p>
+      </form>
+    </section>
+
+    <aside class="sources-pane">
+      <h3>Retrieved sources</h3>
+      <p id="sources-hint" class="sources-hint">The regulation excerpts used for the latest answer appear here.</p>
+      <div id="sources"></div>
+    </aside>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
