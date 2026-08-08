@@ -15,11 +15,12 @@ COPY data ./data
 # Install Python dependencies
 RUN pip install --no-cache-dir -e "."
 
-# Build the search index at startup
+# Bake the retrieval index into the image so startup is instant
 RUN python -m railsafe.ingest
 
-# Expose port
+# Railway, Render and Fly inject the port to bind as $PORT. Shell-form CMD
+# (not exec-form) is required for the variable to be expanded.
+ENV PORT=8000
 EXPOSE 8000
 
-# Run the server
-CMD ["uvicorn", "railsafe.server:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD uvicorn railsafe.server:app --host 0.0.0.0 --port ${PORT:-8000}

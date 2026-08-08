@@ -74,6 +74,13 @@ Without an API key the server runs in **demo mode**: retrieval works and the
 top excerpts are streamed back verbatim, so the UI is fully demoable
 offline.
 
+### Deploying
+
+The app is a single container — API, UI, and prebuilt index. Railway, Fly.io
+and Render all build the bundled `Dockerfile` directly; see
+[DEPLOYMENT.md](DEPLOYMENT.md) for per-host steps, the environment variables
+(`RAILSAFE_MODEL`, `RAILSAFE_TOP_K`, …), and troubleshooting.
+
 ![Landing page with suggested compliance questions](docs/ui-landing.png)
 
 ### CLI
@@ -126,6 +133,7 @@ must surface the correct regulation in the top 5) and run fully offline.
 data/corpus/          regulation documents (markdown + front matter)
 data/index/           chunks.jsonl produced by `railsafe.ingest` (gitignored)
 src/railsafe/
+  config.py           paths, model/chunking defaults, env overrides
   chunker.py          front-matter parsing + section-based chunking
   ingest.py           corpus -> chunks.jsonl
   retriever.py        BM25 search with jurisdiction filter
@@ -135,6 +143,9 @@ src/railsafe/
   fetch_ecfr.py       pull official 49 CFR text from the eCFR API
 tests/
 docs/                 UI screenshots
+Dockerfile            container image (index baked in at build time)
+railway.json          Railway build config
+DEPLOYMENT.md         per-host deploy steps and configuration
 ```
 
 ## Disclaimer
