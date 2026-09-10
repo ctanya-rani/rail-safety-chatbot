@@ -12,12 +12,16 @@ Requires ANTHROPIC_API_KEY (or an `ant auth login` profile) unless
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 
 import anthropic
 
 from .config import DEFAULT_TOP_K, MAX_TOKENS, MODEL
+from .logging_config import setup_logging
 from .retriever import Hit, Retriever
+
+logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """\
 You are a rail safety regulatory assistant. You answer compliance questions
@@ -46,6 +50,7 @@ Rules:
 
 
 def format_context(hits: list[Hit]) -> str:
+    """Format retrieved hits as XML context block for Claude."""
     blocks = []
     for hit in hits:
         c = hit.chunk
@@ -58,6 +63,7 @@ def format_context(hits: list[Hit]) -> str:
 
 
 def build_user_turn(question: str, hits: list[Hit]) -> dict:
+    """Build a user message with context excerpts for the LLM."""
     return {
         "role": "user",
         "content": [
@@ -83,23 +89,44 @@ def _move_cache_marker(messages: list[dict]) -> None:
 
 
 class RailSafetyChat:
+    """Interactive RAG chatbot over FRA/ERA regulations."""
+
     def __init__(
         self,
         model: str = MODEL,
         top_k: int = DEFAULT_TOP_K,
         jurisdiction: str | None = None,
     ):
+        """Initialize the chatbot with a model and retriever.
+
+        Args:
+            model: Claude model ID (default: claude-opus-4-8).
+            top_k: Number of regulation excerpts to retrieve per question.
+            jurisdiction: Optionally filter to "US-FRA" or "EU-ERA".
+        """
         self.client = anthropic.Anthropic()
         self.retriever = Retriever()
         self.model = model
         self.top_k = top_k
         self.jurisdiction = jurisdiction
         self.messages: list[dict] = []
+        logger.info(f"Initialized chatbot: model={model}, top_k={top_k}, jurisdiction={jurisdiction}")
 
     def ask(self, question: str, stream_to=sys.stdout) -> str:
+        """Ask a question and stream the response.
+
+        Args:
+            question: Plain-English compliance question.
+            stream_to: File-like object for streaming output (default: stdout).
+
+        Returns:
+            The complete answer text.
+        """
+        logger.debug(f"Question: {question[:60]}")
         hits = self.retriever.search(
             question, k=self.top_k, jurisdiction=self.jurisdiction
         )
+        logger.debug(f"Retrieved {len(hits)} chunks")
         self.messages.append(build_user_turn(question, hits))
         _move_cache_marker(self.messages)
 
@@ -138,6 +165,7 @@ class RailSafetyChat:
 
 
 def print_hits(hits: list[Hit]) -> None:
+    """Print retrieved chunks in human-readable format."""
     if not hits:
         print("  (no matching chunks)")
         return
@@ -147,6 +175,9 @@ def print_hits(hits: list[Hit]) -> None:
 
 
 def main() -> int:
+    """CLI entry point for interactive or one-shot chatbot."""
+    setup_logging(logging.INFO)
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ask", help="ask a single question and exit")
     parser.add_argument("--k", type=int, default=DEFAULT_TOP_K, help="chunks to retrieve")

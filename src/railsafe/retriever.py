@@ -9,6 +9,7 @@ system").
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,6 +18,8 @@ from rank_bm25 import BM25Okapi
 
 from .chunker import Chunk
 from .config import CHUNKS_FILE, DEFAULT_TOP_K
+
+logger = logging.getLogger(__name__)
 
 # Words + section-number tokens like "213.9" or "402/2013"
 TOKEN_RE = re.compile(r"[a-z0-9]+(?:[./][a-z0-9]+)*")
@@ -56,15 +59,29 @@ class Hit:
 
 
 class Retriever:
+    """BM25 search engine over regulation chunks."""
+
     def __init__(self, chunks_file: Path = CHUNKS_FILE):
+        """Load chunks and build BM25 index.
+
+        Args:
+            chunks_file: Path to chunks.jsonl from `railsafe.ingest`.
+
+        Raises:
+            FileNotFoundError: If chunks_file does not exist.
+        """
         if not chunks_file.exists():
-            raise FileNotFoundError(
-                f"{chunks_file} not found — run `python -m railsafe.ingest` first."
-            )
+            msg = f"{chunks_file} not found — run `python -m railsafe.ingest` first."
+            logger.error(msg)
+            raise FileNotFoundError(msg)
+
         self.chunks: list[Chunk] = []
         with chunks_file.open(encoding="utf-8") as fh:
             for line in fh:
                 self.chunks.append(Chunk(**json.loads(line)))
+
+        logger.info(f"Loaded {len(self.chunks)} chunks from {chunks_file}")
+
         corpus_tokens = [
             tokenize(f"{c.title} {c.citation} {c.section} {c.text}")
             for c in self.chunks
@@ -79,7 +96,13 @@ class Retriever:
     ) -> list[Hit]:
         """Top-k chunks for a plain-English query.
 
-        `jurisdiction` optionally restricts results to "US-FRA" or "EU-ERA".
+        Args:
+            query: Plain-English question or topic.
+            k: Number of top results to return.
+            jurisdiction: Optionally restrict to "US-FRA" or "EU-ERA".
+
+        Returns:
+            List of (chunk, score) hits sorted by relevance.
         """
         scores = self._bm25.get_scores(expand_query(tokenize(query)))
         hits = [

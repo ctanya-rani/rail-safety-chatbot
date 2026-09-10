@@ -95,18 +95,26 @@ async function ask(question) {
       for (const evt of events) {
         const line = evt.trim();
         if (!line.startsWith("data:")) continue;
-        const payload = JSON.parse(line.slice(5));
-        if (payload.type === "sources") {
+        let payload;
+        try {
+          payload = JSON.parse(line.slice(5));
+        } catch (e) {
+          console.error("Failed to parse SSE event:", e, line);
+          continue;
+        }
+        if (payload.type === "sources" && payload.sources) {
           renderSources(payload.sources);
-        } else if (payload.type === "delta") {
+        } else if (payload.type === "delta" && payload.text !== undefined) {
           answer += payload.text;
           botEl.classList.remove("typing");
           botEl.innerHTML = renderText(answer);
           chatEl.scrollTop = chatEl.scrollHeight;
-        } else if (payload.type === "error") {
+        } else if (payload.type === "error" && payload.message) {
           botEl.classList.remove("typing");
           botEl.classList.add("msg-error");
           botEl.innerHTML = renderText(payload.message);
+        } else if (payload.type === "done") {
+          botEl.classList.remove("typing");
         }
       }
     }

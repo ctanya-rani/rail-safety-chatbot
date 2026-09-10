@@ -16,18 +16,23 @@ Usage:
 from __future__ import annotations
 
 import json
+import logging
 import os
 from pathlib import Path
 
 import anthropic
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .chat import SYSTEM_PROMPT, build_user_turn
 from .config import DEFAULT_TOP_K, MAX_TOKENS, MODEL
+from .logging_config import setup_logging
 from .retriever import Hit, Retriever
+
+logger = logging.getLogger(__name__)
+setup_logging()
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -37,6 +42,7 @@ _retriever: Retriever | None = None
 
 
 def get_retriever() -> Retriever:
+    """Lazy-load the retrieval index (singleton)."""
     global _retriever
     if _retriever is None:
         _retriever = Retriever()
@@ -44,6 +50,7 @@ def get_retriever() -> Retriever:
 
 
 def demo_mode() -> bool:
+    """Check if running without Anthropic credentials (demo mode)."""
     return not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN"))
 
 
@@ -55,10 +62,12 @@ class ChatRequest(BaseModel):
 
 
 def _sse(payload: dict) -> str:
+    """Format a payload as an SSE (Server-Sent Events) line."""
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
 def _source_payload(hits: list[Hit]) -> dict:
+    """Create a 'sources' event payload from retrieved hits."""
     return {
         "type": "sources",
         "sources": [
@@ -77,6 +86,7 @@ def _source_payload(hits: list[Hit]) -> dict:
 
 
 def _demo_answer(hits: list[Hit]):
+    """Stream top excerpts verbatim when no API key is configured."""
     yield _sse(
         {
             "type": "delta",
@@ -99,6 +109,7 @@ def _demo_answer(hits: list[Hit]):
 
 
 def _model_answer(req: ChatRequest, hits: list[Hit]):
+    """Stream Claude's synthesized answer to the question."""
     client = anthropic.Anthropic()
     messages = [
         {"role": m["role"], "content": m["content"]}
@@ -136,6 +147,7 @@ def _model_answer(req: ChatRequest, hits: list[Hit]):
 
 @app.get("/api/health")
 def health() -> dict:
+    """Health check endpoint; also reports mode and index size."""
     retriever = get_retriever()
     return {
         "status": "ok",
@@ -147,12 +159,24 @@ def health() -> dict:
 
 @app.post("/api/chat")
 def chat(req: ChatRequest) -> StreamingResponse:
+    """Stream chat response with sources and answer as SSE events."""
+    if not req.message or not req.message.strip():
+        logger.warning("Empty message received")
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+
     retriever = get_retriever()
-    hits = retriever.search(req.message, k=req.k, jurisdiction=req.jurisdiction)
+    logger.debug(f"Searching: {req.message[:60]}... (k={req.k}, jurisdiction={req.jurisdiction})")
+
+    try:
+        hits = retriever.search(req.message, k=req.k, jurisdiction=req.jurisdiction)
+    except Exception as e:
+        logger.error(f"Search failed: {e}")
+        raise HTTPException(status_code=500, detail="Search engine error")
 
     def event_stream():
         yield _sse(_source_payload(hits))
         if not hits:
+            logger.info(f"No hits for: {req.message[:60]}")
             yield _sse(
                 {
                     "type": "delta",
@@ -164,8 +188,10 @@ def chat(req: ChatRequest) -> StreamingResponse:
             yield _sse({"type": "done", "demo": demo_mode()})
             return
         if demo_mode():
+            logger.debug(f"Demo mode: streaming {len(hits)} excerpts")
             yield from _demo_answer(hits)
         else:
+            logger.debug(f"Full mode: sending {len(hits)} excerpts to Claude")
             yield from _model_answer(req, hits)
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
@@ -173,6 +199,7 @@ def chat(req: ChatRequest) -> StreamingResponse:
 
 @app.get("/")
 def index() -> FileResponse:
+    """Serve the single-page chat UI."""
     return FileResponse(STATIC_DIR / "index.html")
 
 
